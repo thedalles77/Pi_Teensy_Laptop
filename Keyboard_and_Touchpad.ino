@@ -2,7 +2,9 @@
 // Keyboard and Touchpad controller for Sony Viao PCG-K25 laptop.
 // This software is in the public domain.
 // 
-// Rev 1.0 - Nov 5, 2017
+// Revision History
+// Rev 1.00 - Nov 5, 2017 - Original Release
+// Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -13,7 +15,7 @@
 // The print screen and num lock keys were not functional on my keyboard so they do not show up in the matrix.
 // The Menu key is not included in Teensyduino so it will be used as a print screen key. 
 //
-// The keyboard matrix: columns (inputs) across the top and rows (outputs) along the side
+// The keyboard matrix: columns (inputs) across the top and rows (outputs) along the side 
 /*
         0          1          2          3          4          5          6          7
 0                           CTRL-R                                      CTRL-L  
@@ -401,9 +403,9 @@ void receiveEvent(int numBytes) {
     }
   }
 }
-// Function to send Teensy code version number to Pi
+// Function to send Teensy code version number, date and author to Pi
 void requestEvent() {
-  Wire.write("V 1.0");
+  Wire.write("Version #01.01  Nov 10, 2017 MFA");
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
 void setup() {
