@@ -5,6 +5,7 @@
 // Revision History
 // Rev 1.00 - Nov 5, 2017 - Original Release
 // Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
+// Rev 2.0  - Dec 24, 2017 - Added ADC read of battery and low voltage shutdown of laptop
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -405,10 +406,11 @@ void receiveEvent(int numBytes) {
 }
 // Function to send Teensy code version number, date and author to Pi
 void requestEvent() {
-  Wire.write("Version #01.01  Nov 10, 2017 MFA");
+  Wire.write("Version #02.00  Dec 25, 2017 MFA");
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
 void setup() {
+  analogReference(EXTERNAL); // Configure ADC to use external 5 volt reference
   reset_shutdown_init(); // initialize reset and shutdown signals
   lcd_control_init(); // initialize lcd control signals
   sec_delay(30); //wait to let pi boot up before starting so pi registers the usb keyboard
@@ -526,6 +528,17 @@ int blink_count = 0; // loop counter
 boolean blinky = LOW; // Blink LED state
 //
 extern volatile uint8_t keyboard_leds; // 8 bits sent from Pi to Teensy that give keyboard LED status. Caps lock is bit D1.
+//
+int adc_value1; //  holds the A to D conversion of the battery/4 value 
+int adc_value2;
+int adc_value3;
+int adc_value4;
+int adc_value5;
+int adc_value6;
+int adc_value7;
+int adc_value8;
+int adc_ave;
+boolean warning = 0; // high if undervoltage and display has been blinked off and back on 
 //
 // Main Loop scans the keyboard switches and then poles the touchpad 
 //
@@ -1848,7 +1861,7 @@ void loop() {
   }
   else {
     go_1(DISK_LED); // turn off the led with the disk icon 
-  }
+  }  
 // Blink LED on Teensy to show it's alive
 //
   if (blink_count == 0x0a) {  
@@ -1860,7 +1873,33 @@ void loop() {
   else {
     blink_count = blink_count + 1;
   }
-//
-  delay(23);//The keyboard & touchpad scan takes about 7 msec so wait 23 msec before proceeding with next polling cycle              
+// Read the battery voltage 8 times and take the average
+  adc_ave = 0;
+  for (int i=0; i<8; i++) {
+    adc_ave = analogRead(0) + adc_ave; // sum 8 adc reads together
+  }
+  adc_ave = adc_ave/8; // divide sum by 8 to get average
+  if ((adc_ave <= 0x2d5) & (!warning)) { // battery voltage under 14.6 and display not yet blinked?
+    go_0(On_Off); // pulse the display power low  
+    delay(200); // for 200ms
+    go_z(On_Off); // and then high to turn off the display 
+    delay(800); // wait 800ms before proceeding
+    go_0(On_Off); // pulse the display power low  
+    delay(200); // for 200ms
+    go_z(On_Off); // and then high to turn on the display 
+    delay(800); // wait 800ms before proceeding
+    warning = HIGH; // the warning has been given so don't blink it on the next polling cycle
+    debug = 1; // turn on disk led
+  }
+  else if ((adc_ave <= 0x2d0) & (warning)) { // battery voltage below shutdown level?
+    kill_power = HIGH;
+  }
+  if ((adc_ave >= 0x2fa) & (warning)) { // battery voltage above 15.5 and display was blinked?
+    warning = LOW; // return warning to the initial state because the charger was plugged in
+    debug = 0; // turn off disk led
+  }  
+
+
+  delay(22);//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle              
 }
 
