@@ -6,5 +6,6 @@ The folder contains the Eagle files for a circuit board that connects the Teensy
 The .ino file is the Teensyduino C code that scans the keyboard, and touchpad, and controls the video card.
 The read_battery.c file is run on the Raspberry Pi to read the registers in the battery with a bit-bang SMBus.
 
-A short video showing this laptop project is at this YouTube address: https://www.youtube.com/watch?v=Gh3VTcLiJrI
+A short video showing this laptop project (prior to battery operation is at this 
+YouTube address: https://www.youtube.com/watch?v=Gh3VTcLiJrI
 
