@@ -4,8 +4,7 @@
 // Data is wired from Pi GPIO 19 to battery pin 3.
 // Clock is wired from Pi GPIO 26 to battery pin 4.
 //
-// This program does not read the ack/nack bit sent by the battery
-// and it does not monitor the clock for clock stretching.
+// This program does not monitor the clock for clock stretching.
 // The bus was monitored with a logic analyzer to see when the battery
 // holds the clock low and large delays were added before the Pi sends 
 // more data. Sometimes the program reads back FFFF because Linux
@@ -22,6 +21,9 @@
 const int clock = 26; // SMBus clock on Pin 37, GPIO26
 const int data = 19; // SMBus data on Pin 35, GPIO19
 const int quarter = 10; // quarter period time in usec
+
+// Global variables
+int error = 0; // set to 1 when battery gives a NACK
 
 // Functions
 void go_z(int pin) // float the pin and let pullup or battery set level
@@ -44,7 +46,7 @@ int read_pin(int pin) // read the pin and return logic level
 void setupbus(void)
 {
 	wiringPiSetupGpio(); //Init wiringPi using the Broadcom GPIO numbers
-	piHiPri(99); // Make program the highest priority (doesn't seem to work)
+	piHiPri(99); //Make program the highest priority (doesn't help)
 	go_z(clock); // set clock and data to inactive state
 	go_z(data);
 	delayMicroseconds(200); // wait before sending data
@@ -178,13 +180,18 @@ void send8(int sendbits)
 	go_z(data); // float data to see ack
 	delayMicroseconds(quarter);
 	go_z(clock); // clock high
+	// read data to see if battery sends a low (acknowledge transfer)
+	if (read_pin(data))
+	{
+		error = 1; // battery did not acknowledge the transfer
+	}
 	delayMicroseconds(quarter * 2);
 	go_0(clock); // clock low
 	go_0(data); // data low
 	delayMicroseconds(quarter * 90);
 }
 //
-void sendrptstart(void) // send repeated start codition
+void sendrptstart(void) // send repeated start condition
 {				
 	go_z(data); // data high
 	delayMicroseconds(quarter * 8);
@@ -409,6 +416,7 @@ int main(void)
 {        
 	setupbus(); // setup before data transfer
 //****************Voltage********	
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x09); // load register pointer 0x09 
@@ -416,7 +424,8 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	float bat_voltage = (float)read16()/1000;// convert mvolts to volts
 	stopbus(); // send stop condition
-	if ((bat_voltage >= 22) | (bat_voltage <= 6)) // check if out of range
+	// check if out of range or if any NACKs were given by the battery	
+	if ((bat_voltage >= 22) | (bat_voltage <= 6) | (error))
 	{// try again and printf the result (good or bad)
 		startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
@@ -425,14 +434,15 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		bat_voltage = (float)read16()/1000;// convert mvolts to volts
 		stopbus(); // send stop condition
-		printf ("Voltage = %6.3f Volts\n", bat_voltage);  
+		printf ("Voltage =  %6.3f Volts\n", bat_voltage);  
 	}
 	else
-	{// value from 1st try is in range so printf the result 
+	{// 1st try was in range and Ack'ed so printf the result 
 		printf ("Voltage = %6.3f Volts\n", bat_voltage);
 	}
-
+	
 //***************Current**********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x0a); // load register pointer 0x0a
@@ -440,7 +450,8 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	short bat_current = (short)read16();// signed 16 bit ma current
     stopbus(); // send stop condition
-    if ((bat_current >= 3000) | (bat_current == -1))//out of range? 
+    // check if out of range or if any NACKs were given by the battery
+    if ((bat_current >= 3000) | (bat_current == -1) | (error))
 	{// try again and printf the result (good or bad)
     	startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
@@ -449,38 +460,40 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		bat_current = (short)read16();// signed 16 bit ma current
 		stopbus(); // send stop condition
-		printf ("Current = %d mA\n", bat_current);
+		printf ("Current =  %d mA\n", bat_current);
 	}
 	else
-	{// value from 1st try is in range so printf the result 
+	{// 1st try was in range and Ack'ed so printf the result 
 		printf ("Current = %d mA\n", bat_current);
 	}
 
 //********Temperature********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x08); // load register pointer 0x08
 	sendrptstart(); // send repeated start codition				
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	float temper = (float)read16()/10-273.15;//.1K converted to C
+	float temper = (float)read16()/10-273.15;//0.1K unit converted to C
     stopbus(); // send stop condition
-    if (temper >= 40) // check if out of range  
-    {// try again and printf the result (good or bad)
+    if ((temper >= 40) | (error)) // check if out of range or any NACK's 
+    {   // try again and printf the result (good or bad)
 		startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
 		send8(0x08); // load register pointer 0x08
 		sendrptstart(); // send repeated start codition				
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		temper = (float)read16()/10-273.15;//.1K converted to C
+		temper = (float)read16()/10-273.15;//0.1K unit converted to C
 		stopbus(); // send stop condition		
-      	printf ("Temperature = %5.2f degrees C\n", temper);
+      	printf ("Temperature =  %5.2f degrees C\n", temper);
 	}
 	else
-	{// value from 1st try is in range so printf the result 
+	{// 1st try was in range and Ack'ed so printf the result 
 		printf ("Temperature = %5.2f degrees C\n", temper);
 	}
 
 //***************Relative State of Charge**********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x0d); // load register pointer 0x0d
@@ -488,7 +501,7 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	int soc = read16(); //read low&high bytes
 	stopbus(); // send stop condition
-	if (soc >= 150) // check if out of range
+	if ((soc >= 150) | (error)) // check if out of range
 	{// try again and printf the result (good or bad)
 		startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
@@ -497,14 +510,15 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		soc = read16(); //read low&high bytes
 		stopbus(); // send stop condition
-		printf ("State of Charge = %d percent\n", soc);
+		printf ("State of Charge =  %d percent\n", soc);
 	}
 	else
-	{// value from 1st try is in range so printf the result 
+	{// 1st try was in range and Ack'ed so printf the result 
 		printf ("State of Charge = %d percent\n", soc);
 	}
     
 //***************Average Time to Empty**********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x12); // load register pointer 0x12
@@ -512,7 +526,7 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	unsigned int time_to_empty = read16();
     stopbus(); // send stop condition	
-	if (time_to_empty <= 1000)  // don't show bad values
+	if ((time_to_empty <= 1000) & (!error)) // check if in range and ack
 	{
 		printf ("Time to empty = %d minutes\n", time_to_empty);
 	}
@@ -525,14 +539,15 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		time_to_empty = read16();
 		stopbus(); // send stop condition	
-		if (time_to_empty <= 1000)  // don't show bad values
+		if (time_to_empty <= 1000) //don't show bad values when charging
 		{
-			printf ("Time to empty = %d minutes\n", time_to_empty);
+			printf ("Time to empty =  %d minutes\n", time_to_empty);
 		}
-	}// Don't show FFFF min's when at 100% soc and charger hooked up
+	} // Don't show FFFF minutes when at 100% soc and charger hooked up
 		
 		
 //***************Average Time to Full**********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x13); // load register pointer 0x13
@@ -540,7 +555,8 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	unsigned int time_to_full = read16();
     stopbus(); // send stop condition
-	if ((time_to_full <= 1000) & (time_to_full != 0))//don't show f's
+    // check if in range and not zero and ack)
+	if ((time_to_full <= 1000) & (time_to_full != 0) & (!error)) 
 	{
 		printf ("Time to full = %d minutes\n", time_to_full);
 	}
@@ -553,15 +569,17 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		time_to_full = read16();
 		stopbus(); // send stop condition
-		if ((time_to_full <= 1000) & (time_to_full != 0))
+		// don't show out of range or 0
+		if ((time_to_full <= 1000) & (time_to_full != 0))  
 		{
-			printf ("Time to full = %d minutes\n", time_to_full);
+			printf ("Time to full =  %d minutes\n", time_to_full);
 		}
 	}
 	// Don't show FFFF minutes when charger not hooked up
 	// Don't show 0 minutes when at 100 SOC and charger hooked up
 	
 //***************Battery Status**********
+	error = 0; // initialize to no error
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
 	send8(0x16); // load register pointer 0x16
@@ -569,7 +587,7 @@ int main(void)
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	unsigned short bat_stat = read16();
     stopbus(); // send stop condition
-	if (bat_stat == 0xffff) // read again if all 1's
+	if ((bat_stat == 0xffff) | (error))// read again if all 1's or nack
 	{
 		startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
@@ -621,14 +639,14 @@ int main(void)
 	{
 		printf ("   Fully Discharged\n");
 	}
-	if ((bat_stat & 0x240f) != 0x0000)  // check if unknown bits set
+/*	if ((bat_stat & 0x240f) != 0x0000)  // check if unknown bits set
 	{
 		printf ("   Unknown\n");
 	}
-		
+*/	
 //*******Generic Register Read**********
 /*
-	unsigned int reg_pointer = 0x09;// init but changed by user
+	unsigned int reg_pointer = 0x09;// initialized but changed by user
 	printf ("Enter the register to read in Hex, ie 0x?? "); 
 	scanf ("%x", &reg_pointer);
 	printf ("0x%02x Register", reg_pointer);// show register to read
@@ -641,7 +659,7 @@ int main(void)
     stopbus(); // send stop condition
     printf (" = %#06x Hex, %d decimal\n", value, value);
 */
-//***Register Write Example***Sets Remaining Time Alarm reg 0x02 to 10
+//*Register Write Example***Sets Remaining Time Alarm reg 0x02 to 10 min
 /*        Note: there is no repeated start on a write
 	startbus(); // send start condition
 	send8(0x16); // send battery address 0x16 (0x0b w/ write)
