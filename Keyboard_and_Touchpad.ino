@@ -6,6 +6,7 @@
 // Rev 1.00 - Nov 5, 2017 - Original Release
 // Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
 // Rev 2.0  - Dec 24, 2017 - Added ADC read of battery and low voltage shutdown of laptop
+// Rev 2.1  - Dec 27, 2017 - Added warning counter to track the times the ADC says the battery is undervoltage
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -406,7 +407,7 @@ void receiveEvent(int numBytes) {
 }
 // Function to send Teensy code version number, date and author to Pi
 void requestEvent() {
-  Wire.write("Version #02.00  Dec 25, 2017 MFA");
+  Wire.write("Version #02.10  Dec 27, 2017 MFA");
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
 void setup() {
@@ -538,7 +539,7 @@ int adc_value6;
 int adc_value7;
 int adc_value8;
 int adc_ave;
-boolean warning = 0; // high if undervoltage and display has been blinked off and back on 
+int warning = 0; // counts the undervoltage ADC reads 
 //
 // Main Loop scans the keyboard switches and then poles the touchpad 
 //
@@ -1873,13 +1874,18 @@ void loop() {
   else {
     blink_count = blink_count + 1;
   }
-// Read the battery voltage 8 times and take the average
+// Read the battery voltage 8 times and take the average to filter out noise
   adc_ave = 0;
   for (int i=0; i<8; i++) {
     adc_ave = analogRead(0) + adc_ave; // sum 8 adc reads together
   }
   adc_ave = adc_ave/8; // divide sum by 8 to get average
-  if ((adc_ave <= 0x2d5) & (!warning)) { // battery voltage under 14.6 and display not yet blinked?
+// Check adc average against trip points and keep a count of how many times it tripped 
+  if ((adc_ave <= 0x2d5) & (warning <= 3)) { // battery voltage under warning level and 3 or less warnings so increment warning counter
+    warning = warning + 1; // increase warning counter by 1
+  }
+  else if ((adc_ave <= 0x2d5) & (warning == 4)) { // battery voltage warning level and 4 warnings so blink display
+    warning = warning + 1; // increase warning counter to 5
     go_0(On_Off); // pulse the display power low  
     delay(200); // for 200ms
     go_z(On_Off); // and then high to turn off the display 
@@ -1888,18 +1894,19 @@ void loop() {
     delay(200); // for 200ms
     go_z(On_Off); // and then high to turn on the display 
     delay(800); // wait 800ms before proceeding
-    warning = HIGH; // the warning has been given so don't blink it on the next polling cycle
-    debug = 1; // turn on disk led
+    debug = 1; // turn on disk led to draw attention
   }
-  else if ((adc_ave <= 0x2d0) & (warning)) { // battery voltage below shutdown level?
+  else if ((adc_ave <= 0x2d0) & (warning <= 7)) { // battery voltage below shutdown level for 3 or less times
+    warning = warning + 1; // increase warning counter by 1
+  }
+  else if ((adc_ave <= 0x2d0) & (warning >= 8)) { // battery voltage was below shutdown level 4 times
     kill_power = HIGH;
   }
-  if ((adc_ave >= 0x2fa) & (warning)) { // battery voltage above 15.5 and display was blinked?
-    warning = LOW; // return warning to the initial state because the charger was plugged in
+//
+  if ((adc_ave >= 0x2fa) & (warning != 0)) { // battery voltage above 15.5 and warning was given
+    warning = 0; // return warning to the initial state because the charger was plugged in
     debug = 0; // turn off disk led
   }  
-
-
   delay(22);//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle              
 }
 

@@ -415,169 +415,6 @@ void stopbus(void) // stop condition, data low when clock goes high
 int main(void)
 {        
 	setupbus(); // setup before data transfer
-//****************Voltage********	
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x09); // load register pointer 0x09 
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	float bat_voltage = (float)read16()/1000;// convert mvolts to volts
-	stopbus(); // send stop condition
-	// check if out of range or if any NACKs were given by the battery	
-	if ((bat_voltage >= 22) | (bat_voltage <= 6) | (error))
-	{// try again and printf the result (good or bad)
-		startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x09); // load register pointer 0x09 
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		bat_voltage = (float)read16()/1000;// convert mvolts to volts
-		stopbus(); // send stop condition
-		printf ("Voltage =  %6.3f Volts\n", bat_voltage);  
-	}
-	else
-	{// 1st try was in range and Ack'ed so printf the result 
-		printf ("Voltage = %6.3f Volts\n", bat_voltage);
-	}
-	
-//***************Current**********
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x0a); // load register pointer 0x0a
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	short bat_current = (short)read16();// signed 16 bit ma current
-    stopbus(); // send stop condition
-    // check if out of range or if any NACKs were given by the battery
-    if ((bat_current >= 3000) | (bat_current == -1) | (error))
-	{// try again and printf the result (good or bad)
-    	startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x0a); // load register pointer 0x0a
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		bat_current = (short)read16();// signed 16 bit ma current
-		stopbus(); // send stop condition
-		printf ("Current =  %d mA\n", bat_current);
-	}
-	else
-	{// 1st try was in range and Ack'ed so printf the result 
-		printf ("Current = %d mA\n", bat_current);
-	}
-
-//********Temperature********
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x08); // load register pointer 0x08
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	float temper = (float)read16()/10-273.15;//0.1K unit converted to C
-    stopbus(); // send stop condition
-    if ((temper >= 40) | (error)) // check if out of range or any NACK's 
-    {   // try again and printf the result (good or bad)
-		startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x08); // load register pointer 0x08
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		temper = (float)read16()/10-273.15;//0.1K unit converted to C
-		stopbus(); // send stop condition		
-      	printf ("Temperature =  %5.2f degrees C\n", temper);
-	}
-	else
-	{// 1st try was in range and Ack'ed so printf the result 
-		printf ("Temperature = %5.2f degrees C\n", temper);
-	}
-
-//***************Relative State of Charge**********
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x0d); // load register pointer 0x0d
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	int soc = read16(); //read low&high bytes
-	stopbus(); // send stop condition
-	if ((soc >= 150) | (error)) // check if out of range
-	{// try again and printf the result (good or bad)
-		startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x0d); // load register pointer 0x0d
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		soc = read16(); //read low&high bytes
-		stopbus(); // send stop condition
-		printf ("State of Charge =  %d percent\n", soc);
-	}
-	else
-	{// 1st try was in range and Ack'ed so printf the result 
-		printf ("State of Charge = %d percent\n", soc);
-	}
-    
-//***************Average Time to Empty**********
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x12); // load register pointer 0x12
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	unsigned int time_to_empty = read16();
-    stopbus(); // send stop condition	
-	if ((time_to_empty <= 1000) & (!error)) // check if in range and ack
-	{
-		printf ("Time to empty = %d minutes\n", time_to_empty);
-	}
-	else
-	{
-		startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x12); // load register pointer 0x12
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		time_to_empty = read16();
-		stopbus(); // send stop condition	
-		if (time_to_empty <= 1000) //don't show bad values when charging
-		{
-			printf ("Time to empty =  %d minutes\n", time_to_empty);
-		}
-	} // Don't show FFFF minutes when at 100% soc and charger hooked up
-		
-		
-//***************Average Time to Full**********
-	error = 0; // initialize to no error
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x13); // load register pointer 0x13
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	unsigned int time_to_full = read16();
-    stopbus(); // send stop condition
-    // check if in range and not zero and ack)
-	if ((time_to_full <= 1000) & (time_to_full != 0) & (!error)) 
-	{
-		printf ("Time to full = %d minutes\n", time_to_full);
-	}
-	else
-	{
-		startbus(); // send start condition
-		send8(0x16); // send battery address 0x16 (0x0b w/ write)
-		send8(0x13); // load register pointer 0x13
-		sendrptstart(); // send repeated start codition				
-		send8(0x17); // send battery address 0x17 (0x0b w/ read)
-		time_to_full = read16();
-		stopbus(); // send stop condition
-		// don't show out of range or 0
-		if ((time_to_full <= 1000) & (time_to_full != 0))  
-		{
-			printf ("Time to full =  %d minutes\n", time_to_full);
-		}
-	}
-	// Don't show FFFF minutes when charger not hooked up
-	// Don't show 0 minutes when at 100 SOC and charger hooked up
-	
 //***************Battery Status**********
 	error = 0; // initialize to no error
 	startbus(); // send start condition
@@ -589,6 +426,7 @@ int main(void)
     stopbus(); // send stop condition
 	if ((bat_stat == 0xffff) | (error))// read again if all 1's or nack
 	{
+		error = 0; // initialize to no error
 		startbus(); // send start condition
 		send8(0x16); // send battery address 0x16 (0x0b w/ write)
 		send8(0x16); // load register pointer 0x16
@@ -596,78 +434,256 @@ int main(void)
 		send8(0x17); // send battery address 0x17 (0x0b w/ read)
 		bat_stat = read16();
 		stopbus(); // send stop condition
-	}
-    printf ("Battery Status\n");
-//    printf ("Battery Status = %#06x Hex\n", bat_stat);	
- 	if ((bat_stat & 0x8000) == 0x8000)  
+	}  //bat_stat printf comes after all the other registers are printed
+	// Only proceed with reading the other registers if bat_stat is OK
+	if (bat_stat != 0xffff)
+//****************Voltage********	
 	{
-		printf ("   OVERCHARGE ALARM\n");
-	}
-	if ((bat_stat & 0x4000) == 0x4000)  
-	{
-		printf ("   TERMINATE CHARGE ALARM\n");
-	}
-	if ((bat_stat & 0x1000) == 0x1000)  
-	{
-		printf ("   OVER TEMP ALARM\n");
-	}
-	if ((bat_stat & 0x0800) == 0x0800)  
-	{
-		printf ("   TERMINATE DISCHARGE ALARM\n");
-	}	
-	if ((bat_stat & 0x0200) == 0x0200)  
-	{
-		printf ("   REMAINING CAPACITY ALARM\n");
-	}	
-	if ((bat_stat & 0x0100) == 0x0100)  
-	{
-		printf ("   REMAINING TIME ALARM\n");
-	}	
-	if ((bat_stat & 0x0080) == 0x0080)  
-	{
-		printf ("   Initialized\n");
-	}	
-	if ((bat_stat & 0x0040) == 0x0040)  
-	{
-		printf ("   Discharging\n");
-	}	
-	if ((bat_stat & 0x0020) == 0x0020)  
-	{
-		printf ("   Fully Charged\n");
-	}	
-	if ((bat_stat & 0x0010) == 0x0010)  
-	{
-		printf ("   Fully Discharged\n");
-	}
-/*	if ((bat_stat & 0x240f) != 0x0000)  // check if unknown bits set
-	{
-		printf ("   Unknown\n");
-	}
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x09); // load register pointer 0x09 
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		float bat_voltage = (float)read16()/1000;// convert mvolts to volts
+		stopbus(); // send stop condition
+		// check if out of range or if any NACKs were given by the battery	
+		if ((bat_voltage >= 22) | (bat_voltage <= 6) | (error))
+		{// try again and printf the result (good or bad)
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x09); // load register pointer 0x09 
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			bat_voltage = (float)read16()/1000;// convert mvolts to volts
+			stopbus(); // send stop condition
+			printf ("Voltage =  %6.3f Volts\n", bat_voltage);		  
+		}
+		else
+		{// 1st try was in range and Ack'ed so printf the result 
+			printf ("Voltage = %6.3f Volts\n", bat_voltage);
+		}
+	
+//***************Current**********
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x0a); // load register pointer 0x0a
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		short bat_current = (short)read16();// signed 16 bit ma current
+		stopbus(); // send stop condition
+		// check if out of range or if any NACKs were given by the battery
+		if ((bat_current >= 3000) | (bat_current == -1) | (error))
+		{// try again and printf the result (good or bad)
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x0a); // load register pointer 0x0a
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			bat_current = (short)read16();// signed 16 bit ma current
+			stopbus(); // send stop condition
+			printf ("Current =  %d mA\n", bat_current);
+		}
+		else
+		{// 1st try was in range and Ack'ed so printf the result 
+			printf ("Current = %d mA\n", bat_current);
+		}
+
+//********Temperature********
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x08); // load register pointer 0x08
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		float temper = (float)read16()/10-273.15;//0.1K unit converted to C
+		stopbus(); // send stop condition
+		if ((temper >= 40) | (error)) // check if out of range or any NACK's 
+		{   // try again and printf the result (good or bad)
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x08); // load register pointer 0x08
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			temper = (float)read16()/10-273.15;//0.1K unit converted to C
+			stopbus(); // send stop condition		
+			printf ("Temperature =  %5.2f degrees C\n", temper);
+		}
+		else
+		{// 1st try was in range and Ack'ed so printf the result 
+			printf ("Temperature = %5.2f degrees C\n", temper);
+		}
+
+//***************Relative State of Charge**********
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x0d); // load register pointer 0x0d
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		int soc = read16(); //read low&high bytes
+		stopbus(); // send stop condition
+		if ((soc >= 150) | (error)) // check if out of range or any nack's
+		{// try again and printf the result (good or bad)
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x0d); // load register pointer 0x0d
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			soc = read16(); //read low&high bytes
+			stopbus(); // send stop condition
+			printf ("State of Charge =  %d percent\n", soc);
+		}
+		else
+		{// 1st try was in range and Ack'ed so printf the result 
+			printf ("State of Charge = %d percent\n", soc);
+		}
+    
+//***************Average Time to Empty**********
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x12); // load register pointer 0x12
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		unsigned int time_to_empty = read16();
+		stopbus(); // send stop condition	
+		if ((time_to_empty <= 1000) & (!error)) // check if in range and ack
+		{
+			printf ("Time to empty = %d minutes\n", time_to_empty);
+		}
+		else
+		{
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x12); // load register pointer 0x12
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			time_to_empty = read16();
+			stopbus(); // send stop condition	
+			if (time_to_empty <= 1000) //don't show bad values when charging
+			{
+				printf ("Time to empty =  %d minutes\n", time_to_empty);
+			}
+		} // Don't show FFFF minutes when at 100% soc and charger hooked up
+		
+		
+//***************Average Time to Full**********
+		error = 0; // initialize to no error
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x13); // load register pointer 0x13
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		unsigned int time_to_full = read16();
+		stopbus(); // send stop condition
+		// check if in range and not zero and ack)
+		if ((time_to_full <= 1000) & (time_to_full != 0) & (!error)) 
+		{
+			printf ("Time to full = %d minutes\n", time_to_full);
+		}
+		else
+		{
+			error = 0; // initialize to no error
+			startbus(); // send start condition
+			send8(0x16); // send battery address 0x16 (0x0b w/ write)
+			send8(0x13); // load register pointer 0x13
+			sendrptstart(); // send repeated start codition				
+			send8(0x17); // send battery address 0x17 (0x0b w/ read)
+			time_to_full = read16();
+			stopbus(); // send stop condition
+		// Don't show FFFF minutes when charger not hooked up
+		// Don't show 0 minutes when at 100 SOC and charger hooked up
+			if ((time_to_full <= 1000) & (time_to_full != 0))  
+			{
+				printf ("Time to full =  %d minutes\n", time_to_full);
+			}
+		}
+	
+//************Print Battery Status**********
+		printf ("Battery Status\n");
+//    	printf ("Battery Status = %#06x Hex\n", bat_stat);	
+		if ((bat_stat & 0x8000) == 0x8000)  
+		{
+			printf ("   OVERCHARGE ALARM\n");
+		}
+		if ((bat_stat & 0x4000) == 0x4000)  
+		{
+			printf ("   TERMINATE CHARGE ALARM\n");
+		}
+		if ((bat_stat & 0x1000) == 0x1000)  
+		{
+			printf ("   OVER TEMP ALARM\n");
+		}
+		if ((bat_stat & 0x0800) == 0x0800)  
+		{
+			printf ("   TERMINATE DISCHARGE ALARM\n");
+		}	
+		if ((bat_stat & 0x0200) == 0x0200)  
+		{
+			printf ("   REMAINING CAPACITY ALARM\n");
+		}	
+		if ((bat_stat & 0x0100) == 0x0100)  
+		{
+			printf ("   REMAINING TIME ALARM\n");
+		}	
+		if ((bat_stat & 0x0080) == 0x0080)  
+		{
+			printf ("   Initialized\n");
+		}	
+		if ((bat_stat & 0x0040) == 0x0040)  
+		{
+			printf ("   Discharging\n");
+		}	
+		if ((bat_stat & 0x0020) == 0x0020)  
+		{
+			printf ("   Fully Charged\n");
+		}	
+		if ((bat_stat & 0x0010) == 0x0010)  
+		{
+			printf ("   Fully Discharged\n");
+		}
+/*		if ((bat_stat & 0x240f) != 0x0000)  // check if unknown bits set
+		{
+			printf ("   Unknown\n");
+		}
 */	
 //*******Generic Register Read**********
 /*
-	unsigned int reg_pointer = 0x09;// initialized but changed by user
-	printf ("Enter the register to read in Hex, ie 0x?? "); 
-	scanf ("%x", &reg_pointer);
-	printf ("0x%02x Register", reg_pointer);// show register to read
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(reg_pointer); // load register pointer
-	sendrptstart(); // send repeated start codition				
-	send8(0x17); // send battery address 0x17 (0x0b w/ read)
-	unsigned int value = read16();
-    stopbus(); // send stop condition
-    printf (" = %#06x Hex, %d decimal\n", value, value);
+		unsigned int reg_pointer = 0x09;// initialized but changed by user
+		printf ("Enter the register to read in Hex, ie 0x?? "); 
+		scanf ("%x", &reg_pointer);
+		printf ("0x%02x Register", reg_pointer);// show register to read
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(reg_pointer); // load register pointer
+		sendrptstart(); // send repeated start codition				
+		send8(0x17); // send battery address 0x17 (0x0b w/ read)
+		unsigned int value = read16();
+		stopbus(); // send stop condition
+		printf (" = %#06x Hex, %d decimal\n", value, value);
 */
 //*Register Write Example***Sets Remaining Time Alarm reg 0x02 to 10 min
-/*        Note: there is no repeated start on a write
-	startbus(); // send start condition
-	send8(0x16); // send battery address 0x16 (0x0b w/ write)
-	send8(0x02); // load register pointer 0x02
-	send8(0x0a); // send low byte of 0x0a = 10 decimal minutes
-	send8(0x00); // send high byte of 0x00	
-    stopbus(); // send stop condition
+/*        
+		startbus(); // send start condition
+		send8(0x16); // send battery address 0x16 (0x0b w/ write)
+		send8(0x02); // load register pointer 0x02
+	// Note: there is no repeated start on a write 
+		send8(0x0a); // send low byte of 0x0a = 10 decimal minutes
+		send8(0x00); // send high byte of 0x00	
+		stopbus(); // send stop condition
 */
+    }
+    else    // the bat_stat read was FFFF so no battery communication
+    {
+		printf ("The battery did not respond\n");
+	}
 	return 0;
 }
 
