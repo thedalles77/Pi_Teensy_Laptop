@@ -1,4 +1,5 @@
-// This program reads the laptop battery status registers over a bit-
+// This software is in the public domain.
+// The program reads the laptop battery status registers over a bit-
 // bang SMBus created with two of the Pi's GPIO pins and wiringPi. 
 // SMBus Data and clock are pulled to 3.3 volts with 3K resistors.
 // Data is wired from Pi GPIO 19 to battery pin 3.
@@ -13,6 +14,10 @@
 //
 // Add -l wiringPi to the Compile & Build and sudo to the execute per:
 // https://learn.sparkfun.com/tutorials/raspberry-gpio/using-an-ide
+//
+// Revision History
+// Rev 1.0 - Dec 25, 2017 - Original Release
+// Rev 1.1 - Jan 1, 2018 - Add rev history and public domain
 //
 #include <stdio.h>
 #include <wiringPi.h>
@@ -423,7 +428,7 @@ int main(void)
 	sendrptstart(); // send repeated start codition				
 	send8(0x17); // send battery address 0x17 (0x0b w/ read)
 	unsigned short bat_stat = read16();
-    stopbus(); // send stop condition
+	stopbus(); // send stop condition
 	if ((bat_stat == 0xffff) | (error))// read again if all 1's or nack
 	{
 		error = 0; // initialize to no error

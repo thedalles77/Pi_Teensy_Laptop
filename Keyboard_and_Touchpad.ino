@@ -7,6 +7,7 @@
 // Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
 // Rev 2.0  - Dec 24, 2017 - Added ADC read of battery and low voltage shutdown of laptop
 // Rev 2.1  - Dec 27, 2017 - Added warning counter to track the times the ADC says the battery is undervoltage
+// Rev 2.2  - Jan 1, 2018 - Cleanup ADC variables and divide by 8 using shift 
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -407,7 +408,7 @@ void receiveEvent(int numBytes) {
 }
 // Function to send Teensy code version number, date and author to Pi
 void requestEvent() {
-  Wire.write("Version #02.10  Dec 27, 2017 MFA");
+  Wire.write("Version #02.20  Jan  1, 2018 MFA");
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
 void setup() {
@@ -530,15 +531,7 @@ boolean blinky = LOW; // Blink LED state
 //
 extern volatile uint8_t keyboard_leds; // 8 bits sent from Pi to Teensy that give keyboard LED status. Caps lock is bit D1.
 //
-int adc_value1; //  holds the A to D conversion of the battery/4 value 
-int adc_value2;
-int adc_value3;
-int adc_value4;
-int adc_value5;
-int adc_value6;
-int adc_value7;
-int adc_value8;
-int adc_ave;
+int adc_ave; //  holds the A to D conversion of the battery/4 value
 int warning = 0; // counts the undervoltage ADC reads 
 //
 // Main Loop scans the keyboard switches and then poles the touchpad 
@@ -1879,7 +1872,7 @@ void loop() {
   for (int i=0; i<8; i++) {
     adc_ave = analogRead(0) + adc_ave; // sum 8 adc reads together
   }
-  adc_ave = adc_ave/8; // divide sum by 8 to get average
+    adc_ave = adc_ave >> 3; // divide sum by 8 to get average
 // Check adc average against trip points and keep a count of how many times it tripped 
   if ((adc_ave <= 0x2d5) & (warning <= 3)) { // battery voltage under warning level and 3 or less warnings so increment warning counter
     warning = warning + 1; // increase warning counter by 1
