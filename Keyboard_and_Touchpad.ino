@@ -1841,7 +1841,7 @@ void loop() {
   }
 // Look at variables controlled by I2C commands & keyboard
   if (kill_power) {  
-    sec_delay(4); // give Pi time to finish shutdown before removing power
+    sec_delay(6); // give Pi time to finish shutdown before removing power
     go_1(SHUTDOWN); // send a logic 1 to turn off all power  
   }
   if (reset_all) {
