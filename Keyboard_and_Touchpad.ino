@@ -7,7 +7,10 @@
 // Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
 // Rev 2.0  - Dec 24, 2017 - Added ADC read of battery and low voltage shutdown of laptop
 // Rev 2.1  - Dec 27, 2017 - Added warning counter to track the times the ADC says the battery is undervoltage
-// Rev 2.2  - Jan 1, 2018 - Cleanup ADC variables and divide by 8 using shift 
+// Rev 2.2  - Jan 1, 2018 - Cleanup ADC variables and divide by 8 using shift
+// Rev 3.0  - Feb 14, 2018 - Remove code for Teensy to shutdown laptop at particular battery voltage.
+//                           Add i2c command for Pi to blink the LCD.
+//                           Return battery voltage to the Pi from the ADC over the i2c bus   
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -101,10 +104,12 @@ int slot4 = 0;
 int slot5 = 0; 
 int slot6 = 0;
 //
-// Declare variables that pi controls via i2c
+// Declare variables that pi controls and reads via i2c
 boolean debug = LOW; // HIGH turns on the DISK_LED (used for code debug)
 boolean reset_all = LOW; // HIGH resets the Pi and Teensy
 boolean kill_power = LOW; // HIGH disables all 3 voltage regulators
+boolean blink_display = LOW; // HIGH causes LCD display to blink off and back on
+int adc_ave; //  holds the A to D conversion of the battery/4 value
 //
 // Function to clear the slot that contains the key name
 void clear_slot(int key) {
@@ -386,7 +391,7 @@ void sec_delay(int sec)
     }
 }
 // Function to receive commands over i2c
-// Commands are: shutdown = 0x5a, reset = 0xb7, debug led on = 0x10, debug led off = 0x11
+// Commands are: shutdown = 0x5a, reset = 0xb7, debug led on = 0x10, debug led off = 0x11, blink lcd = e2
 void receiveEvent(int numBytes) {
   byte read_value;
   int i;
@@ -404,11 +409,105 @@ void receiveEvent(int numBytes) {
     if (read_value == 0x11) {
       debug = LOW; // Send variable "false" for led turn off at the next keyboard polling cycle
     }
+    if (read_value == 0xe2) {
+      blink_display = HIGH; // Send variable "true" for lcd to blink off and back on at the next keyboard polling cycle
+    }
   }
 }
-// Function to send Teensy code version number, date and author to Pi
+// Function to send Battery voltage from ADC, Teensy code version number, date and author to Pi.
+// Formula for the ADC 10 bit code is below. All values read 22 bits lower than expected so there is a negative offset from something.
+// ADC 10 bit Result = [(Battery_voltage/4)/(5v/1023bits)] - 22 bits
 void requestEvent() {
-  Wire.write("Version #02.20  Jan  1, 2018 MFA");
+  if (adc_ave >= 0x345) {
+    Wire.write("Battery = 16.8v V3.0 2/14/18 MFA");
+  }
+  else if (adc_ave >= 0x340) {
+    Wire.write("Battery = 16.7v V3.0 2/14/18 MFA");
+  }
+  else if (adc_ave >= 0x33b) {
+    Wire.write("Battery = 16.6v V3.0 2/14/18 MFA");
+  }
+  else if (adc_ave >= 0x335) {
+    Wire.write("Battery = 16.5v V3.0 2/14/18 MFA");
+  }
+  else if (adc_ave >= 0x330) {
+    Wire.write("Battery = 16.4v V3.0 2/14/18 MFA");
+  }
+    else if (adc_ave >= 0x32b) {
+    Wire.write("Battery = 16.3v V3.0 2/14/18 MFA");
+  }
+    else if (adc_ave >= 0x326) {
+    Wire.write("Battery = 16.2v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x321) {
+    Wire.write("Battery = 16.1v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x31c) {
+    Wire.write("Battery = 16.0v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x317) {
+    Wire.write("Battery = 15.9v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x312) {
+    Wire.write("Battery = 15.8v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x30d) {
+    Wire.write("Battery = 15.7v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x307) {
+    Wire.write("Battery = 15.6v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x302) {
+    Wire.write("Battery = 15.5v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2fd) {
+    Wire.write("Battery = 15.4v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2f8) {
+    Wire.write("Battery = 15.3v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2f3) {
+    Wire.write("Battery = 15.2v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2ee) {
+    Wire.write("Battery = 15.1v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2e9) {
+    Wire.write("Battery = 15.0v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2e4) {
+    Wire.write("Battery = 14.9v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2df) {
+    Wire.write("Battery = 14.8v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2d9) {
+    Wire.write("Battery = 14.7v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2d4) {
+    Wire.write("Battery = 14.6v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2cf) {
+    Wire.write("Battery = 14.5v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2ca) {
+    Wire.write("Battery = 14.4v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2c5) {
+    Wire.write("Battery = 14.3v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2c0) {
+    Wire.write("Battery = 14.2v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2bb) {
+    Wire.write("Battery = 14.1v V3.0 2/14/18 MFA");
+  }    
+    else if (adc_ave >= 0x2b6) {
+    Wire.write("Battery = 14.0v V3.0 2/14/18 MFA");
+  }    
+    else {
+    Wire.write("Battery < 14.0v V3.0 2/14/18 MFA");
+  }
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
 void setup() {
@@ -531,8 +630,7 @@ boolean blinky = LOW; // Blink LED state
 //
 extern volatile uint8_t keyboard_leds; // 8 bits sent from Pi to Teensy that give keyboard LED status. Caps lock is bit D1.
 //
-int adc_ave; //  holds the A to D conversion of the battery/4 value
-int warning = 0; // counts the undervoltage ADC reads 
+// int warning = 0; // counts the undervoltage ADC reads (no longer used)
 //
 // Main Loop scans the keyboard switches and then poles the touchpad 
 //
@@ -1856,6 +1954,16 @@ void loop() {
   else {
     go_1(DISK_LED); // turn off the led with the disk icon 
   }  
+  if (blink_display) { 
+    go_0(On_Off); // pulse the display power button low  
+    delay(100); // for 100ms
+    go_z(On_Off); // and then high to turn off the display 
+    delay(300); // wait 300ms before proceeding
+    go_0(On_Off); // pulse the display power button low  
+    delay(100); // for 100ms
+    go_z(On_Off); // and then high to turn on the display 
+    blink_display = LOW; // turn off variable to avoid blinking on next polling cycle
+  }
 // Blink LED on Teensy to show it's alive
 //
   if (blink_count == 0x0a) {  
@@ -1873,11 +1981,18 @@ void loop() {
     adc_ave = analogRead(0) + adc_ave; // sum 8 adc reads together
   }
     adc_ave = adc_ave >> 3; // divide sum by 8 to get average
+//
+// The following section of code to turn off the laptop has been commented out because the battery voltage for 10% and 5%
+// state of charge varies with battery usage, age, and temperature. 
+// The control for blinking the display and turning off the laptop has been moved to a background program running on the Pi
+// that reads the battery state of charge over the SMBus.
+//    ***********************The following code is no longer used but is left for future reference************************
+/*
 // Check adc average against trip points and keep a count of how many times it tripped 
-  if ((adc_ave <= 0x2d5) & (warning <= 3)) { // battery voltage under warning level and 3 or less warnings so increment warning counter
+  if ((adc_ave <= 0x2d5) & (warning <= 3)) { // battery voltage under warning level (14.6V) and 3 or less warnings so increment warning counter
     warning = warning + 1; // increase warning counter by 1
   }
-  else if ((adc_ave <= 0x2d5) & (warning == 4)) { // battery voltage warning level and 4 warnings so blink display
+  else if ((adc_ave <= 0x2d5) & (warning == 4)) { // battery voltage under warning level (14.6V) and 4 warnings so blink display
     warning = warning + 1; // increase warning counter to 5
     go_0(On_Off); // pulse the display power low  
     delay(200); // for 200ms
@@ -1889,17 +2004,19 @@ void loop() {
     delay(800); // wait 800ms before proceeding
     debug = 1; // turn on disk led to draw attention
   }
-  else if ((adc_ave <= 0x2d0) & (warning <= 7)) { // battery voltage below shutdown level for 3 or less times
+  else if ((adc_ave <= 0x2d0) & (warning <= 7)) { // battery voltage below shutdown level (14.4V) for 3 or less times
     warning = warning + 1; // increase warning counter by 1
   }
-  else if ((adc_ave <= 0x2d0) & (warning >= 8)) { // battery voltage was below shutdown level 4 times
+  else if ((adc_ave <= 0x2d0) & (warning >= 8)) { // battery voltage was below shutdown level (14.4V) 4 times
     kill_power = HIGH;
   }
 //
-  if ((adc_ave >= 0x2fa) & (warning != 0)) { // battery voltage above 15.5 and warning was given
+  if ((adc_ave >= 0x2fa) & (warning != 0)) { // battery voltage above 15V and warning was given
     warning = 0; // return warning to the initial state because the charger was plugged in
     debug = 0; // turn off disk led
   }  
-  delay(22);//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle              
+  */
+  delay(22);//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle    
+//            
 }
 
