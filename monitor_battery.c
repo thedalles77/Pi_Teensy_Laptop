@@ -1,10 +1,11 @@
 // This program is in the public domain.
 // Release History:
-// Original Release - Feb 14, 2018
+// Rev 1.0 - Feb 14, 2018 - Original Release 
+// Rev 1.1 - March 7, 2018 - Added old_soc to keep previous value for testing
 //
 // Execute this program at startup so that it can monitor
 // the battery state of charge every minute.
-// At 10% SoC, a new terminal window displays a low battery warning. 
+// At 10% SoC, the disk LED turns on to indicate a low battery warning. 
 // At 7% SoC, the LCD blinks off and on to get the users attention. 
 // At 5% SoC, a safe shutdown is executed.
 // 
@@ -420,9 +421,9 @@ int main(void)
 {        
 	delay(1000); // wait a second before starting
 	setupbus(); // setup the GPIO SMBus
-	printf("Battery State of Charge monitor program running\n");
 	int led_on = 0; // variable to keep track of when warning led is on
 	int soc; // variable to store the state of charge
+	int old_soc = 50; // soc from last time battery was checked
 	unsigned short bat_stat; // variable to store the battery status
 	while(1)  // infinite loop
 	{
@@ -469,25 +470,27 @@ int main(void)
 				stopbus(); // send stop condition
 			}
 			// Check the battery State of Charge for the following:
-			// <= 5% causes a safe shutdown.
-			// <= 7% causes the display to blink off and on.
-			// <= 10% turns on the disk LED as a warning.
-			if (soc <= 5) // check for shutdown condition
+			// <= 5% causes a safe shutdown (must have been <= 8% on last check).
+			// <= 7% causes the display to blink (must have been <= 10% on last check).
+			// <= 10% turns on the disk LED as a warning (must have been <= 13% on last check).
+			// Keeping track of the old soc is done in case there is a bad smbus read
+			if ((soc <= 5) & (old_soc <= 8)) // check for shutdown condition
 			{   
 				system("sudo shutdown -h now"); // safe shutdown of Pi
 				// note that a systemd unit file sends 
 				// i2cset -y 1 0x08 0x00 0x5a
 				// which commands the Teensy to turn off the power 
 			}
-			else if (soc <= 7) // check for blink display condition
+			else if ((soc <= 7) & (old_soc <= 10)) // check for blink display condition
 			{
 				system("i2cset -y 1 0x08 0x00 0xe2"); // blink the display
 			}
-			else if ((soc <= 10) && (!led_on)) // soc at 10% and LED is off
+			else if ((soc <= 10) & (old_soc <= 13) & (!led_on)) // soc at 10% and LED is off
 			{
 				system("i2cset -y 1 0x08 0x00 0x10"); // turn on disk LED
 				led_on = 0x01; // variable shows led is turned on
 			}
+			old_soc = soc; // save soc for next time
 		}
 		else if (led_on) // charger plugged in and LED is on
 			{

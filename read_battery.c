@@ -18,6 +18,7 @@
 // Revision History
 // Rev 1.0 - Dec 25, 2017 - Original Release
 // Rev 1.1 - Jan 1, 2018 - Add rev history and public domain
+// Rev 1.2 - March 7, 2018 - Added test for out of range on bat current
 //
 #include <stdio.h>
 #include <wiringPi.h>
@@ -480,7 +481,7 @@ int main(void)
 		short bat_current = (short)read16();// signed 16 bit ma current
 		stopbus(); // send stop condition
 		// check if out of range or if any NACKs were given by the battery
-		if ((bat_current >= 3000) | (bat_current == -1) | (error))
+		if ((bat_current >= 3000) | (bat_current <= -3000) | (bat_current == -1) | (error))
 		{// try again and printf the result (good or bad)
 			error = 0; // initialize to no error
 			startbus(); // send start condition
