@@ -11,6 +11,8 @@
 // Rev 3.0  - Feb 14, 2018 - Remove code for Teensy to shutdown laptop at particular battery voltage.
 //                           Add i2c command for Pi to blink the LCD.
 //                           Return battery voltage to the Pi from the ADC over the i2c bus   
+// Rev 3.1  - July 7, 2018 - Added watchdog timer to touchpad routine to break out of while loops. This fixed 
+//                           the lock up problem at startup and reset.
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -111,6 +113,8 @@ boolean kill_power = LOW; // HIGH disables all 3 voltage regulators
 boolean blink_display = LOW; // HIGH causes LCD display to blink off and back on
 int adc_ave; //  holds the A to D conversion of the battery/4 value
 //
+boolean touchpad_error = LOW; // sent high when touch pad routine times out
+//
 // Function to clear the slot that contains the key name
 void clear_slot(int key) {
   if (slot1 == key) {
@@ -186,6 +190,7 @@ void touchpad_write(char data)
  // put pins in output mode 
   go_z(MDATA);
   go_z(MCLK);
+  elapsedMillis watchdog; // set watchdog to zero
   delayMicroseconds(300);
   go_0(MCLK);
   delayMicroseconds(300);
@@ -194,8 +199,12 @@ void touchpad_write(char data)
   // start bit 
   go_z(MCLK);
   // wait for touchpad to take control of clock)
-  while (digitalRead(MCLK) == HIGH)
-    ;
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag
+      break;
+    }
+  }
   // clock is low, and we are clear to send data 
   for (i=0; i < 8; i++) {
     if (data & 0x01) {
@@ -205,10 +214,18 @@ void touchpad_write(char data)
       go_0(MDATA);
     }
     // wait for clock cycle 
-    while (digitalRead(MCLK) == LOW)
-      ;
-    while (digitalRead(MCLK) == HIGH)
-      ;
+    while (digitalRead(MCLK) == LOW) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }      
+    while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
     parity = parity ^ (data & 0x01);
     data = data >> 1;
   }  
@@ -219,67 +236,120 @@ void touchpad_write(char data)
   else {
     go_0(MDATA);
   }
-  while (digitalRead(MCLK) == LOW)
-    ;
-  while (digitalRead(MCLK) == HIGH)
-    ;
+ // wait for clock cycle
+  while (digitalRead(MCLK) == LOW) {
+  if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }  
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }  
   // stop bit 
   go_z(MDATA);
   delayMicroseconds(50);
-  while (digitalRead(MCLK) == HIGH)
-    ;
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   // wait for touchpad to switch modes 
-  while ((digitalRead(MCLK) == LOW) || (digitalRead(MDATA) == LOW))
-    ;
+  while ((digitalRead(MCLK) == LOW) || (digitalRead(MDATA) == LOW)) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   // put a hold on the incoming data. 
   go_0(MCLK);
 }
-// Function to read a byte of data from the Touchpad
+
+//
+// Function to get a byte of data from the touchpad
+//
 char touchpad_read(void)
 {
   char data = 0x00;
   int i;
   char bity = 0x01;
   // start the clock 
+  elapsedMillis watchdog; // set watchdog to zero
   go_z(MCLK);
   go_z(MDATA);
   delayMicroseconds(50);
-  while (digitalRead(MCLK) == HIGH)
-    ;
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   delayMicroseconds(5);  // wait for clock ring to settle 
-  while (digitalRead(MCLK) == LOW) // eat start bit 
-    ;
+  while (digitalRead(MCLK) == LOW) {  // eat start bit 
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   for (i=0; i < 8; i++) {
-    while (digitalRead(MCLK) == HIGH)
-      ;
+    while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
     if (digitalRead(MDATA) == HIGH) {
       data = data | bity;
     }
-    while (digitalRead(MCLK) == LOW)
-      ;
+    while (digitalRead(MCLK) == LOW) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
     bity = bity << 1;
   }
   // eat parity bit, which we ignore 
-  while (digitalRead(MCLK) == HIGH)
-    ;
-  while (digitalRead(MCLK) == LOW)
-    ;
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
+  while (digitalRead(MCLK) == LOW) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   // eat stop bit 
-  while (digitalRead(MCLK) == HIGH)
-    ;
-  while (digitalRead(MCLK) == LOW)
-    ;
+  while (digitalRead(MCLK) == HIGH) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
+  while (digitalRead(MCLK) == LOW) {
+    if (watchdog >= 200) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break;
+    }
+  }
   // put a hold on the incoming data. 
   go_0(MCLK);
-
   return data;
 }
 // Function to initialize the Touchpad
 void touchpad_init()
 {
-  go_z(MCLK);
+  touchpad_error = LOW; // start with no error
+  go_z(MCLK); // float the clock and data to touchpad
   go_z(MDATA);
-  //  Sending reset to touchpad 
+  //  Sending reset to touchpad
   touchpad_write(0xff);
   touchpad_read();  // ack byte
   //  Read ack byte
@@ -293,7 +363,7 @@ void touchpad_init()
   touchpad_read();  // ack byte
   //  Sending remote mode code so the touchpad will send data only when polled
   touchpad_write(0xf0);  // remote mode 
-  touchpad_read();  // ack byte
+  touchpad_read();  // Read ack byte 
   delayMicroseconds(100);
 }
 // Function to send the 4 keyboard modifier keys over usb
@@ -382,14 +452,6 @@ void pulse_vol_dn()
   go_z(Vol_Dn);
   delay(800);
 }
-//  Function to give selectable seconds delay  
-void sec_delay(int sec)
-{
-  int i;
-  for (i=0; i < sec; i++) {
-    delay(1000); //delay 1 second
-    }
-}
 // Function to receive commands over i2c
 // Commands are: shutdown = 0x5a, reset = 0xb7, debug led on = 0x10, debug led off = 0x11, blink lcd = e2
 void receiveEvent(int numBytes) {
@@ -419,94 +481,94 @@ void receiveEvent(int numBytes) {
 // ADC 10 bit Result = [(Battery_voltage/4)/(5v/1023bits)] - 22 bits
 void requestEvent() {
   if (adc_ave >= 0x345) {
-    Wire.write("Battery = 16.8v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.8v V3.1  7/7/18 MFA");
   }
   else if (adc_ave >= 0x340) {
-    Wire.write("Battery = 16.7v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.7v V3.1  7/7/18 MFA");
   }
   else if (adc_ave >= 0x33b) {
-    Wire.write("Battery = 16.6v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.6v V3.1  7/7/18 MFA");
   }
   else if (adc_ave >= 0x335) {
-    Wire.write("Battery = 16.5v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.5v V3.1  7/7/18 MFA");
   }
   else if (adc_ave >= 0x330) {
-    Wire.write("Battery = 16.4v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.4v V3.1  7/7/18 MFA");
   }
     else if (adc_ave >= 0x32b) {
-    Wire.write("Battery = 16.3v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.3v V3.1  7/7/18 MFA");
   }
     else if (adc_ave >= 0x326) {
-    Wire.write("Battery = 16.2v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.2v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x321) {
-    Wire.write("Battery = 16.1v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.1v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x31c) {
-    Wire.write("Battery = 16.0v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 16.0v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x317) {
-    Wire.write("Battery = 15.9v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.9v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x312) {
-    Wire.write("Battery = 15.8v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.8v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x30d) {
-    Wire.write("Battery = 15.7v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.7v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x307) {
-    Wire.write("Battery = 15.6v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.6v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x302) {
-    Wire.write("Battery = 15.5v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.5v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2fd) {
-    Wire.write("Battery = 15.4v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.4v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2f8) {
-    Wire.write("Battery = 15.3v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.3v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2f3) {
-    Wire.write("Battery = 15.2v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.2v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2ee) {
-    Wire.write("Battery = 15.1v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.1v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2e9) {
-    Wire.write("Battery = 15.0v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 15.0v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2e4) {
-    Wire.write("Battery = 14.9v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.9v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2df) {
-    Wire.write("Battery = 14.8v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.8v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2d9) {
-    Wire.write("Battery = 14.7v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.7v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2d4) {
-    Wire.write("Battery = 14.6v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.6v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2cf) {
-    Wire.write("Battery = 14.5v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.5v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2ca) {
-    Wire.write("Battery = 14.4v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.4v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2c5) {
-    Wire.write("Battery = 14.3v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.3v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2c0) {
-    Wire.write("Battery = 14.2v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.2v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2bb) {
-    Wire.write("Battery = 14.1v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.1v V3.1  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2b6) {
-    Wire.write("Battery = 14.0v V3.0 2/14/18 MFA");
+    Wire.write("Battery = 14.0v V3.1  7/7/18 MFA");
   }    
     else {
-    Wire.write("Battery < 14.0v V3.0 2/14/18 MFA");
+    Wire.write("Battery < 14.0v V3.1  7/7/18 MFA");
   }
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
@@ -514,12 +576,15 @@ void setup() {
   analogReference(EXTERNAL); // Configure ADC to use external 5 volt reference
   reset_shutdown_init(); // initialize reset and shutdown signals
   lcd_control_init(); // initialize lcd control signals
-  sec_delay(30); //wait to let pi boot up before starting so pi registers the usb keyboard
   keyboard_init(); // initialize keyboard 
   touchpad_init(); // initialize touchpad
+  if (touchpad_error) { // check for error
+    touchpad_init(); // try one more time to initialize the touchpad
+  }
   Wire.begin(8);                // join i2c bus with address #8
   Wire.onReceive(receiveEvent); // register event to receive command from Pi
   Wire.onRequest(requestEvent); // register event to send info back to Pi
+    
 }
 // Declare and Initialize Keyboard Variables
 boolean old_key_1 = HIGH; // old_key_ ... holds the state of every normal keyboard switch
@@ -630,9 +695,7 @@ boolean blinky = LOW; // Blink LED state
 //
 extern volatile uint8_t keyboard_leds; // 8 bits sent from Pi to Teensy that give keyboard LED status. Caps lock is bit D1.
 //
-// int warning = 0; // counts the undervoltage ADC reads (no longer used)
-//
-// Main Loop scans the keyboard switches and then poles the touchpad 
+// Main Loop scans the keyboard switches and then polls the touchpad 
 //
 void loop() {  
 // 
@@ -1822,21 +1885,19 @@ void loop() {
     send_normals(slot1, slot2, slot3, slot4, slot5, slot6); // use function to send 6 slots over usb
   }
 // ****************CAPS LOCK Key***************************
-// Sending KEY_CAPS_LOCK to a windows 7 PC works fine but sending it to a Pi causes the Teensy to lock up if you 
-// don't put in a small delay after you send_normals
   // Check if key is pressed and wasn't pressed last time and a usb slot is empty
   if (!digitalRead(Col5) && old_key_CAPS_LOCK && (!slots_full)) {
     load_slot(KEY_CAPS_LOCK); //update first available slot with key name
     old_key_CAPS_LOCK = LOW; //remember key is now pressed
     send_normals(slot1, slot2, slot3, slot4, slot5, slot6); // use function to send 6 slots over usb
-    delay(10); //this delay keeps the teensy happy (perhaps it gives the pi time to send caps lock led status)
+    delay(10); // wait for pi to send back led status update
   }
   // Check if key is released and was pressed last time
   if (digitalRead(Col5) && !old_key_CAPS_LOCK) {
     clear_slot(KEY_CAPS_LOCK); // clear slot that contains key name
     old_key_CAPS_LOCK = HIGH; // remember key is now released
     send_normals(slot1, slot2, slot3, slot4, slot5, slot6); // use function to send 6 slots over usb
-    delay(10); //this delay keeps the teensy happy (perhaps it gives the pi time to send caps lock led status)
+    delay(10); // wait for pi to send back led status update
    }
 // ****************ESC Key***************************
   // Check if key is pressed and wasn't pressed last time and a usb slot is empty
@@ -1858,6 +1919,7 @@ void loop() {
 // --------------------------------------Poll the touchpad for new movement data and button pushes----------------------------------
 //
   over_flow = 0; // assume no overflow until status is received 
+  touchpad_error = LOW; // start with no error
   touchpad_write(0xeb);  // "eb" = request data
   touchpad_read();      // ignore ack
   mstat = touchpad_read(); // read and save into status variable
@@ -1880,8 +1942,8 @@ void loop() {
     my = 0x80 | my;              // the 8th bit position
   } 
   my = (~my + 0x01); // change the sign of y data by taking the 2's complement (invert and add 1)
-// zero out mx and my if over_flow is set
-  if (over_flow) {   // check if overflow is set
+// zero out mx and my if over_flow or touchpad_error is set
+  if ((over_flow) || (touchpad_error)) { 
     mx = 0x00;       // data is garbage so zero it out
     my = 0x00;
   } 
@@ -1890,30 +1952,30 @@ void loop() {
     Mouse.move(mx,my);
   }
 //
-// send the touchpad left and right button status over usb
-// using Mouse.set_buttons(LEFT, MIDDLE, RIGHT) function
-// 1 for button pressed, 0 for not pressed. Middle is always 0 for this touch pad.
-  if ((0x01 & mstat) == 0x01) {   // if left button set 
-    left_button = 1;   
-  }
-  else {   
-    left_button = 0; // clear left button  
-  }
-  if ((0x02 & mstat) == 0x02) {   // if right button set 
-    right_button = 1;   
-  } 
-  else {   
-    right_button = 0; // clear right button  
-  }
+// send the touchpad left and right button status over usb if no error
+  if (!touchpad_error) {
+    if ((0x01 & mstat) == 0x01) {   // if left button set 
+      left_button = 1;   
+    }
+    else {   // clear left button
+      left_button = 0;   
+    }
+    if ((0x02 & mstat) == 0x02) {   // if right button set 
+      right_button = 1;   
+    } 
+    else {   // clear right button
+      right_button = 0;  
+    }
 // Determine if the left or right touch pad buttons have changed since last polling cycle
-  button_change = (left_button ^ old_left_button) | (right_button ^ old_right_button);
-// Don't send button status if there's no change since last time. Only send if touchpad is enabled.
-  if (button_change && touchpad_enabled){
-    Mouse.set_buttons(left_button, 0, right_button); // send button status
+    button_change = (left_button ^ old_left_button) | (right_button ^ old_right_button);
+// Don't send button status if there's no change since last time. 
+    if (button_change){
+      Mouse.set_buttons(left_button, 0, right_button); // send button status
+    }
+    old_left_button = left_button; // remember new button status for next polling cycle
+    old_right_button = right_button;
   }
-// transfer left and right button status into the "old" variables for the next polling cycle
-  old_left_button = left_button;
-  old_right_button = right_button;  
+//
 // ---------------------------------------------Touchpad complete-------------------------------------------
 //
 // ************Pi and Teensy Reset via keyboard***********************************************
@@ -1939,7 +2001,7 @@ void loop() {
   }
 // Look at variables controlled by I2C commands & keyboard
   if (kill_power) {  
-    sec_delay(6); // give Pi time to finish shutdown before removing power
+    delay(6000); // give Pi time to finish shutdown before removing power
     go_1(SHUTDOWN); // send a logic 1 to turn off all power  
   }
   if (reset_all) {
@@ -1982,41 +2044,8 @@ void loop() {
   }
     adc_ave = adc_ave >> 3; // divide sum by 8 to get average
 //
-// The following section of code to turn off the laptop has been commented out because the battery voltage for 10% and 5%
-// state of charge varies with battery usage, age, and temperature. 
-// The control for blinking the display and turning off the laptop has been moved to a background program running on the Pi
-// that reads the battery state of charge over the SMBus.
-//    ***********************The following code is no longer used but is left for future reference************************
-/*
-// Check adc average against trip points and keep a count of how many times it tripped 
-  if ((adc_ave <= 0x2d5) & (warning <= 3)) { // battery voltage under warning level (14.6V) and 3 or less warnings so increment warning counter
-    warning = warning + 1; // increase warning counter by 1
-  }
-  else if ((adc_ave <= 0x2d5) & (warning == 4)) { // battery voltage under warning level (14.6V) and 4 warnings so blink display
-    warning = warning + 1; // increase warning counter to 5
-    go_0(On_Off); // pulse the display power low  
-    delay(200); // for 200ms
-    go_z(On_Off); // and then high to turn off the display 
-    delay(800); // wait 800ms before proceeding
-    go_0(On_Off); // pulse the display power low  
-    delay(200); // for 200ms
-    go_z(On_Off); // and then high to turn on the display 
-    delay(800); // wait 800ms before proceeding
-    debug = 1; // turn on disk led to draw attention
-  }
-  else if ((adc_ave <= 0x2d0) & (warning <= 7)) { // battery voltage below shutdown level (14.4V) for 3 or less times
-    warning = warning + 1; // increase warning counter by 1
-  }
-  else if ((adc_ave <= 0x2d0) & (warning >= 8)) { // battery voltage was below shutdown level (14.4V) 4 times
-    kill_power = HIGH;
-  }
 //
-  if ((adc_ave >= 0x2fa) & (warning != 0)) { // battery voltage above 15V and warning was given
-    warning = 0; // return warning to the initial state because the charger was plugged in
-    debug = 0; // turn off disk led
-  }  
-  */
-  delay(22);//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle    
-//            
+//The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle    
+  delay(22);           
 }
 
