@@ -1,7 +1,20 @@
 //
 // Keyboard and Touchpad controller for Sony Viao PCG-K25 laptop.
-// This software is in the public domain.
 // 
+// Copyright 2017 Frank Adams
+/*
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 // Revision History
 // Rev 1.00 - Nov 5, 2017 - Original Release
 // Rev 1.01 - Nov 10, 2017 - Expanded i2c request event to include 32 characters
@@ -13,6 +26,7 @@
 //                           Return battery voltage to the Pi from the ADC over the i2c bus   
 // Rev 3.1  - July 7, 2018 - Added watchdog timer to touchpad routine to break out of while loops. This fixed 
 //                           the lock up problem at startup and reset.
+// Rev 3.2  - Nov 30, 2018 - Added Apache License header
 //
 // The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
 // The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
@@ -481,94 +495,94 @@ void receiveEvent(int numBytes) {
 // ADC 10 bit Result = [(Battery_voltage/4)/(5v/1023bits)] - 22 bits
 void requestEvent() {
   if (adc_ave >= 0x345) {
-    Wire.write("Battery = 16.8v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.8v V3.2  7/7/18 MFA");
   }
   else if (adc_ave >= 0x340) {
-    Wire.write("Battery = 16.7v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.7v V3.2  7/7/18 MFA");
   }
   else if (adc_ave >= 0x33b) {
-    Wire.write("Battery = 16.6v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.6v V3.2  7/7/18 MFA");
   }
   else if (adc_ave >= 0x335) {
-    Wire.write("Battery = 16.5v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.5v V3.2  7/7/18 MFA");
   }
   else if (adc_ave >= 0x330) {
-    Wire.write("Battery = 16.4v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.4v V3.2  7/7/18 MFA");
   }
     else if (adc_ave >= 0x32b) {
-    Wire.write("Battery = 16.3v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.3v V3.2  7/7/18 MFA");
   }
     else if (adc_ave >= 0x326) {
-    Wire.write("Battery = 16.2v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.2v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x321) {
-    Wire.write("Battery = 16.1v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.1v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x31c) {
-    Wire.write("Battery = 16.0v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 16.0v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x317) {
-    Wire.write("Battery = 15.9v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.9v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x312) {
-    Wire.write("Battery = 15.8v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.8v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x30d) {
-    Wire.write("Battery = 15.7v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.7v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x307) {
-    Wire.write("Battery = 15.6v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.6v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x302) {
-    Wire.write("Battery = 15.5v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.5v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2fd) {
-    Wire.write("Battery = 15.4v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.4v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2f8) {
-    Wire.write("Battery = 15.3v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.3v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2f3) {
-    Wire.write("Battery = 15.2v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.2v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2ee) {
-    Wire.write("Battery = 15.1v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.1v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2e9) {
-    Wire.write("Battery = 15.0v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 15.0v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2e4) {
-    Wire.write("Battery = 14.9v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.9v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2df) {
-    Wire.write("Battery = 14.8v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.8v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2d9) {
-    Wire.write("Battery = 14.7v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.7v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2d4) {
-    Wire.write("Battery = 14.6v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.6v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2cf) {
-    Wire.write("Battery = 14.5v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.5v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2ca) {
-    Wire.write("Battery = 14.4v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.4v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2c5) {
-    Wire.write("Battery = 14.3v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.3v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2c0) {
-    Wire.write("Battery = 14.2v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.2v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2bb) {
-    Wire.write("Battery = 14.1v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.1v V3.2  7/7/18 MFA");
   }    
     else if (adc_ave >= 0x2b6) {
-    Wire.write("Battery = 14.0v V3.1  7/7/18 MFA");
+    Wire.write("Battery = 14.0v V3.2  7/7/18 MFA");
   }    
     else {
-    Wire.write("Battery < 14.0v V3.1  7/7/18 MFA");
+    Wire.write("Battery < 14.0v V3.2  7/7/18 MFA");
   }
 }
 // Setup the keyboard and touchpad. Float the lcd controls & pi reset. Drive the shutdown inactive.
@@ -2048,4 +2062,3 @@ void loop() {
 //The keyboard & touchpad scan & ADC takes about 8 msec so wait 22 msec before proceeding with next polling cycle    
   delay(22);           
 }
-
