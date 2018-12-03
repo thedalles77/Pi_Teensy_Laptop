@@ -26,10 +26,9 @@
 //                           Return battery voltage to the Pi from the ADC over the i2c bus   
 // Rev 3.1  - July 7, 2018 - Added watchdog timer to touchpad routine to break out of while loops. This fixed 
 //                           the lock up problem at startup and reset.
-// Rev 3.2  - Nov 30, 2018 - Added Apache License header
+// Rev 3.2  - Nov 30, 2018 - Added Apache License header. Replaced playground arduino ps/2 touchpad code with my code. 
 //
-// The ps/2 code for the Touchpad is based on https://playground.arduino.cc/uploads/ComponentLib/mouse.txt
-// The ps/2 definitions are described at http://computer-engineering.org/ps2mouse/
+// The ps/2 code for the Touchpad is written from timing diagrams at http://www.burtonsys.com/ps2_chapweske.htm
 // The USB Mouse Functions are described at https://www.pjrc.com/teensy/td_mouse.html
 // The USB Keyboard Functions are described at https://www.pjrc.com/teensy/td_keyboard.html
 //
@@ -89,8 +88,8 @@
 #define Row15 PIN_A3
 //
 // Define the touchpad clock and data connections to the Teensy (bi-directional signals)
-#define MDATA PIN_B3 // The MDATA & MCLK are driven low or floated (pull ups to 5V are in the touchpad chip). 
-#define MCLK PIN_B2 // They are also read by the Teensy as inputs.
+#define TP_DATA PIN_B3 // The tp_data & tp_clk are driven low or floated (pull ups to 5V are in the touchpad chip). 
+#define TP_CLK PIN_B2 // They are also read by the Teensy as inputs.
 //
 // Define the volume up and down, menu, and on/off controls from the Teensy to the LCD Controller card.
 // These 4 controls are initiated by holding down the Fn key and then pushing a function key as follows:
@@ -128,6 +127,7 @@ boolean blink_display = LOW; // HIGH causes LCD display to blink off and back on
 int adc_ave; //  holds the A to D conversion of the battery/4 value
 //
 boolean touchpad_error = LOW; // sent high when touch pad routine times out
+boolean touchpad_fail = LOW; // sent high if the touchpad won't initialize
 //
 // Function to clear the slot that contains the key name
 void clear_slot(int key) {
@@ -197,188 +197,235 @@ void go_1(int pin)
   digitalWrite(pin, HIGH);  
 }
 // Function to send the Touchpad a command
-void touchpad_write(char data)
+void tp_write(char send_data)  
 {
-  char i;
-  char parity = 1;
- // put pins in output mode 
-  go_z(MDATA);
-  go_z(MCLK);
-  elapsedMillis watchdog; // set watchdog to zero
-  delayMicroseconds(300);
-  go_0(MCLK);
-  delayMicroseconds(300);
-  go_0(MDATA);
-  delayMicroseconds(10);
-  // start bit 
-  go_z(MCLK);
-  // wait for touchpad to take control of clock)
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag
-      break;
+  unsigned int timeout = 200; // breakout of loop if over this value in msec
+  elapsedMillis watchdog; // zero the watchdog timer clock
+  char odd_parity = 0; // clear parity bit count
+// Enable the bus by floating the clock and data
+  go_z(TP_CLK); //
+  go_z(TP_DATA); //
+  delayMicroseconds(250); // wait before requesting the bus
+  go_0(TP_CLK); //   Send the Clock line low to request to transmit data
+  delayMicroseconds(100); // wait for 100 microseconds per bus spec
+  go_0(TP_DATA); //  Send the Data line low (the start bit)
+  delayMicroseconds(1); //
+  go_z(TP_CLK); //   Release the Clock line so it is pulled high
+  delayMicroseconds(1); // give some time to let the clock line go high
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break; // break out of infinite loop
     }
   }
-  // clock is low, and we are clear to send data 
-  for (i=0; i < 8; i++) {
-    if (data & 0x01) {
-      go_z(MDATA);
-    } 
+// send the 8 bits of send_data 
+  for (int j=0; j<8; j++) {
+    if (send_data & 1) {  //check if lsb is set
+      go_z(TP_DATA); // send a 1 to TP
+      odd_parity = odd_parity + 1; // keep running total of 1's sent
+    }
     else {
-      go_0(MDATA);
+      go_0(TP_DATA); // send a 0 to TP
     }
-    // wait for clock cycle 
-    while (digitalRead(MCLK) == LOW) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
+    delayMicroseconds(1); // delay to let the clock settle out
+    while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+      if (watchdog >= timeout) { //check for infinite loop
+        touchpad_error = HIGH; // set error flag       
+        break; // break out of infinite loop
+      }
     }
-  }      
-    while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
-    }
+    delayMicroseconds(1); // delay to let the clock settle out
+    while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+      if (watchdog >= timeout) { //check for infinite loop
+        touchpad_error = HIGH; // set error flag       
+        break; // break out of infinite loop
+      }
+    }  
+    send_data = send_data >> 1; // shift data right by 1 to prepare for next loop
   }
-    parity = parity ^ (data & 0x01);
-    data = data >> 1;
-  }  
-  // parity 
-  if (parity) {
-    go_z(MDATA);
-  } 
+// send the parity bit
+  if (odd_parity & 1) {  //check if lsb of parity is set
+    go_0(TP_DATA); // already odd so send a 0 to TP
+  }
   else {
-    go_0(MDATA);
-  }
- // wait for clock cycle
-  while (digitalRead(MCLK) == LOW) {
-  if (watchdog >= 200) { //check for infinite loop
+    go_z(TP_DATA); // send a 1 to TP to make parity odd
+  }   
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
-    }
-  }  
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
-    }
-  }  
-  // stop bit 
-  go_z(MDATA);
-  delayMicroseconds(50);
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  // wait for touchpad to switch modes 
-  while ((digitalRead(MCLK) == LOW) || (digitalRead(MDATA) == LOW)) {
-    if (watchdog >= 200) { //check for infinite loop
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  // put a hold on the incoming data. 
-  go_0(MCLK);
+  go_z(TP_DATA); //  Release the Data line so it goes high as the stop bit
+  delayMicroseconds(80); // testing shows delay at least 40us 
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break; // break out of infinite loop
+    }
+  }
+  delayMicroseconds(1); // wait to let the data settle
+  if (digitalRead(TP_DATA)) { // Ack bit s/b low if good transfer
+    touchpad_error = HIGH; //bad ack bit so set the error flag
+  }
+  while ((digitalRead(TP_CLK) == LOW) || (digitalRead(TP_DATA) == LOW)) { // loop if clock or data are low
+    if (watchdog >= timeout) { //check for infinite loop
+      touchpad_error = HIGH; // set error flag       
+      break; // break out of infinite loop
+    }
+  }
+// Inhibit the bus so the tp only talks when we're listening
+  go_0(TP_CLK);
 }
-
 //
 // Function to get a byte of data from the touchpad
 //
-char touchpad_read(void)
+char tp_read(void)
 {
-  char data = 0x00;
-  int i;
-  char bity = 0x01;
-  // start the clock 
-  elapsedMillis watchdog; // set watchdog to zero
-  go_z(MCLK);
-  go_z(MDATA);
-  delayMicroseconds(50);
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
+  unsigned int timeout = 200; // breakout of loop if over this value in msec
+  elapsedMillis watchdog; // zero the watchdog timer clock
+  char rcv_data = 0; // initialize to zero
+  char mask = 1; // shift a 1 across the 8 bits to select where to load the data
+  char rcv_parity = 0; // count the ones received
+  go_z(TP_CLK); // release the clock
+  go_z(TP_DATA); // release the data
+  delayMicroseconds(5); // delay to let clock go high
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  delayMicroseconds(5);  // wait for clock ring to settle 
-  while (digitalRead(MCLK) == LOW) {  // eat start bit 
-    if (watchdog >= 200) { //check for infinite loop
+  if (digitalRead(TP_DATA)) { // Start bit s/b low from tp
+    touchpad_error = HIGH; // No start bit so set the error flag
+  }  
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  for (i=0; i < 8; i++) {
-    while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
+  for (int k=0; k<8; k++) {  
+    delayMicroseconds(1); // delay to let the clock settle out
+    while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+      if (watchdog >= timeout) { //check for infinite loop
+        touchpad_error = HIGH; // set error flag       
+        break; // break out of infinite loop
+      }
+    }
+    if (digitalRead(TP_DATA)) { // check if data is high
+      rcv_data = rcv_data | mask; // set the appropriate bit in the rcv data
+      rcv_parity++; // increment the parity bit counter
+    }
+    mask = mask << 1;
+    delayMicroseconds(1); // delay to let the clock settle out
+    while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+      if (watchdog >= timeout) { //check for infinite loop
+        touchpad_error = HIGH; // set error flag       
+        break; // break out of infinite loop
+      }
+    }
+  }
+// receive parity
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-    if (digitalRead(MDATA) == HIGH) {
-      data = data | bity;
-    }
-    while (digitalRead(MCLK) == LOW) {
-    if (watchdog >= 200) { //check for infinite loop
+  if (digitalRead(TP_DATA))  { // check if received parity is high
+    rcv_parity++; // increment the parity bit counter
+  }
+  rcv_parity = rcv_parity & 1; // mask off all bits except the lsb
+  if (rcv_parity == 0) { // check for bad (even) parity
+    touchpad_error = HIGH; //bad parity so set the error flag
+  } 
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-    bity = bity << 1;
-  }
-  // eat parity bit, which we ignore 
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
+// stop bit
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == HIGH) { // loop until the clock goes low
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  while (digitalRead(MCLK) == LOW) {
-    if (watchdog >= 200) { //check for infinite loop
+  if (digitalRead(TP_DATA) == LOW) { // check if stop bit is bad (low)
+    touchpad_error = HIGH; //bad stop bit so set the error flag
+  }
+  delayMicroseconds(1); // delay to let the clock settle out
+  while (digitalRead(TP_CLK) == LOW) { // loop until the clock goes high
+    if (watchdog >= timeout) { //check for infinite loop
       touchpad_error = HIGH; // set error flag       
-      break;
+      break; // break out of infinite loop
     }
   }
-  // eat stop bit 
-  while (digitalRead(MCLK) == HIGH) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
-    }
-  }
-  while (digitalRead(MCLK) == LOW) {
-    if (watchdog >= 200) { //check for infinite loop
-      touchpad_error = HIGH; // set error flag       
-      break;
-    }
-  }
-  // put a hold on the incoming data. 
-  go_0(MCLK);
-  return data;
+// Inhibit the bus so the tp only talks when we're listening
+  go_0(TP_CLK);
+  return rcv_data; // pass the received data back
 }
 // Function to initialize the Touchpad
 void touchpad_init()
 {
   touchpad_error = LOW; // start with no error
-  go_z(MCLK); // float the clock and data to touchpad
-  go_z(MDATA);
-  //  Sending reset to touchpad
-  touchpad_write(0xff);
-  touchpad_read();  // ack byte
-  //  Read ack byte
-  touchpad_read();  // blank 
-  touchpad_read();  // blank 
-  // Default resolution is 4 counts/mm which is too small
-  //  Sending resolution command
-  touchpad_write(0xe8);
-  touchpad_read();  // ack byte
-  touchpad_write(0x03); // value of 03 gives 8 counts/mm resolution
-  touchpad_read();  // ack byte
+  go_z(TP_CLK); // float the clock and data to touchpad
+  go_z(TP_DATA);
+  //  Sending reset command to touchpad
+  tp_write(0xff);
+  if (tp_read() != 0xfa) { // verify correct ack byte
+    touchpad_error = HIGH;
+  }
+  delayMicroseconds(100); // give the tp time to run its self diagnostic
+  //  verify proper response from tp
+  if (tp_read() != 0xaa) { // verify basic assurance test passed
+    touchpad_error = HIGH;
+  } 
+  if (tp_read() != 0x00) { // verify correct device id
+    touchpad_error = HIGH;
+  }
+  // increase resolution from 4 counts/mm to 8 counts/mm
+  tp_write(0xe8); //  Sending resolution command
+  if (tp_read() != 0xfa) { // verify correct ack byte
+    touchpad_error = HIGH;
+  } 
+  tp_write(0x03); // value of 03 = 8 counts/mm resolution (default is 4 counts/mm)
+  if (tp_read() != 0xfa) { // verify correct ack byte
+    touchpad_error = HIGH;
+  }
   //  Sending remote mode code so the touchpad will send data only when polled
-  touchpad_write(0xf0);  // remote mode 
-  touchpad_read();  // Read ack byte 
-  delayMicroseconds(100);
+  tp_write(0xf0);  // remote mode 
+  if (tp_read() != 0xfa) { // verify correct ack byte
+    touchpad_error = HIGH;
+  } 
+  if (touchpad_error == HIGH) { // check for any errors from tp
+    delayMicroseconds(300); // wait before trying to initialize tp one last time
+    tp_write(0xff); // send tp reset code
+    tp_read();  // read but don't look at response from tp
+    tp_read();  // read but don't look at response from tp 
+    tp_read();  // read but don't look at response from tp 
+    tp_write(0xe8); // Send resolution command
+    tp_read();  // read but don't look at response from tp
+    tp_write(0x03); // value of 03 gives 8 counts/mm resolution
+    tp_read();  // read but don't look at response from tp
+    tp_write(0xf0);  // remote mode 
+    tp_read();  // read but don't look at response from tp 
+    delayMicroseconds(100);
+  }
 }
 // Function to send the 4 keyboard modifier keys over usb
 void send_modifiers(int mod_shift, int mod_ctrl, int mod_alt, int mod_gui) {
@@ -594,6 +641,9 @@ void setup() {
   touchpad_init(); // initialize touchpad
   if (touchpad_error) { // check for error
     touchpad_init(); // try one more time to initialize the touchpad
+    if (touchpad_error) { 
+      touchpad_fail = HIGH; // touchpad failed to initialize
+    }
   }
   Wire.begin(8);                // join i2c bus with address #8
   Wire.onReceive(receiveEvent); // register event to receive command from Pi
@@ -1932,13 +1982,16 @@ void loop() {
 // 
 // --------------------------------------Poll the touchpad for new movement data and button pushes----------------------------------
 //
+if (touchpad_fail == LOW) {  //skip touchpad section if it failed to initialize (allows keyboard to keep working)
   over_flow = 0; // assume no overflow until status is received 
   touchpad_error = LOW; // start with no error
-  touchpad_write(0xeb);  // "eb" = request data
-  touchpad_read();      // ignore ack
-  mstat = touchpad_read(); // read and save into status variable
-  mx = touchpad_read(); // read and save into x variable
-  my = touchpad_read(); // read and save into y variable
+  tp_write(0xeb);  // "eb" = request data
+  if (tp_read() != 0xfa) { // verify correct ack byte
+    touchpad_error = HIGH;
+  }
+  mstat = tp_read(); // read and save into status variable
+  mx = tp_read(); // read and save into x variable
+  my = tp_read(); // read and save into y variable
   if (((0x80 & mstat) == 0x80) || ((0x40 & mstat) == 0x40))  {   // x or y overflow bits set?
     over_flow = 1; // set the overflow flag
   }   
@@ -1989,6 +2042,7 @@ void loop() {
     old_left_button = left_button; // remember new button status for next polling cycle
     old_right_button = right_button;
   }
+}
 //
 // ---------------------------------------------Touchpad complete-------------------------------------------
 //
