@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="8.2.2">
+<eagle version="9.2.2">
 <drawing>
 <settings>
-<setting alwaysvectorfont="no"/>
+<setting alwaysvectorfont="yes"/>
+<setting keepoldvectorfont="yes"/>
 <setting verticaltext="up"/>
 </settings>
 <grid distance="0.1" unitdist="inch" unit="inch" style="lines" multiple="1" display="no" altdistance="0.01" altunitdist="inch" altunit="inch"/>
@@ -3380,13 +3381,31 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <plain>
 </plain>
 <instances>
-<instance part="U1" gate="A" x="27.94" y="40.64"/>
-<instance part="U2" gate="G$1" x="121.92" y="40.64"/>
-<instance part="J10" gate="G$1" x="205.74" y="68.58" rot="R180"/>
-<instance part="J1" gate="J$1" x="185.42" y="-2.54" rot="R180"/>
-<instance part="C2" gate="G$1" x="38.1" y="91.44"/>
-<instance part="C1" gate="G$1" x="22.86" y="91.44"/>
-<instance part="J2" gate="G$1" x="66.04" y="96.52" rot="R270"/>
+<instance part="U1" gate="A" x="27.94" y="40.64" smashed="yes">
+<attribute name="NAME" x="22.7076" y="59.3598" size="2.0828" layer="95" ratio="10" rot="SR0"/>
+<attribute name="VALUE" x="21.1328" y="12.5984" size="2.0828" layer="96" ratio="10" rot="SR0"/>
+</instance>
+<instance part="U2" gate="G$1" x="121.92" y="40.64" smashed="yes"/>
+<instance part="J10" gate="G$1" x="205.74" y="68.58" smashed="yes" rot="R180">
+<attribute name="VALUE" x="205.74" y="68.326" size="1.778" layer="96" font="vector" rot="R180"/>
+<attribute name="NAME" x="205.74" y="12.192" size="1.778" layer="95" font="vector" rot="R180"/>
+</instance>
+<instance part="J1" gate="J$1" x="185.42" y="-2.54" smashed="yes" rot="R180">
+<attribute name="VALUE" x="187.96" y="4.826" size="1.778" layer="96" font="vector" rot="R180"/>
+<attribute name="NAME" x="187.96" y="-8.128" size="1.778" layer="95" font="vector" rot="R180"/>
+</instance>
+<instance part="C2" gate="G$1" x="38.1" y="91.44" smashed="yes">
+<attribute name="NAME" x="39.624" y="94.361" size="1.778" layer="95" font="vector"/>
+<attribute name="VALUE" x="39.624" y="89.281" size="1.778" layer="96" font="vector"/>
+</instance>
+<instance part="C1" gate="G$1" x="22.86" y="91.44" smashed="yes">
+<attribute name="NAME" x="24.384" y="94.361" size="1.778" layer="95" font="vector"/>
+<attribute name="VALUE" x="24.384" y="89.281" size="1.778" layer="96" font="vector"/>
+</instance>
+<instance part="J2" gate="G$1" x="66.04" y="96.52" smashed="yes" rot="R270">
+<attribute name="VALUE" x="56.134" y="99.06" size="1.778" layer="96" font="vector" rot="R270"/>
+<attribute name="NAME" x="74.168" y="99.06" size="1.778" layer="95" font="vector" rot="R270"/>
+</instance>
 </instances>
 <busses>
 </busses>
