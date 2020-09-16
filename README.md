@@ -7,5 +7,5 @@ The .ino file is the Teensyduino C code that scans the keyboard, and touchpad, a
 The read_battery.c file is run on the Raspberry Pi to read the registers in the battery with a bit-bang SMBus using 2 of the GPIO pins.
 The monitor_battery.c file runs on the Raspberry Pi at startup and monitors battery state of charge every minute over the SMBus.
 
-A short video of this laptop project is at this YouTube address: https://www.youtube.com/watch?v=Gh3VTcLiJrI
+A short video of this laptop project is at this address: https://vimeo.com/458640649
 Battery operation was added after this video was made.
